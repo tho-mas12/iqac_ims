@@ -24,8 +24,10 @@ UPLOAD_DIR = "/tmp/uploads" if os.getenv("VERCEL") else os.path.join(os.path.dir
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
-# Include the main routing module
+# Include the main routing module (supports both /api/* and root path routing on Vercel)
 app.include_router(router)
+# Strip redundant /api prefix if Vercel strips /api in function rewrites
+app.include_router(router, prefix="/api")
 
 @app.on_event("startup")
 def on_startup():
