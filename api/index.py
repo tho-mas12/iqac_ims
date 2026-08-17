@@ -1,8 +1,14 @@
 import sys
 import os
 
-# Add root folder to sys.path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Insert working directory and root directory at head of sys.path
+cwd = os.getcwd()
+if cwd not in sys.path:
+    sys.path.insert(0, cwd)
+
+root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
 
 from backend.main import app
 
