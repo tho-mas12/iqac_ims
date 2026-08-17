@@ -7,7 +7,6 @@ import {
   Save, 
   X, 
   Layers, 
-  FileText, 
   Check, 
   ChevronRight,
   Info,

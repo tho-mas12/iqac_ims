@@ -12,7 +12,6 @@ import {
   X,
   Check,
   AlertCircle,
-  Calendar,
   Layers3,
   ArrowLeft
 } from 'lucide-react';
@@ -109,7 +108,7 @@ const Dashboard: React.FC = () => {
     setDownloading(key);
     try {
       const response = await api.get(url, { responseType: 'blob' });
-      const blob = new Blob([response.data], { type: response.headers['content-type'] });
+      const blob = new Blob([response.data], { type: String(response.headers['content-type'] || 'application/octet-stream') });
       const link = document.createElement('a');
       link.href = window.URL.createObjectURL(blob);
       link.download = defaultFilename;
