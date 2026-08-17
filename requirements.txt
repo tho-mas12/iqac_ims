@@ -3,7 +3,7 @@ uvicorn
 sqlalchemy
 pymysql
 bcrypt
-python-jose[cryptography]
+python-jose
 pydantic
 reportlab
 openpyxl
