@@ -2,8 +2,7 @@ fastapi
 uvicorn
 sqlalchemy
 pymysql
-bcrypt
-python-jose
+pyjwt
 pydantic
 reportlab
 openpyxl
