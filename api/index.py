@@ -1,8 +1,14 @@
-from fastapi import FastAPI
+import sys
+import os
 
-app = FastAPI()
+cwd = os.getcwd()
+if cwd not in sys.path:
+    sys.path.insert(0, cwd)
 
-@app.get("/api")
-@app.get("/api/")
-def root():
-    return {"message": "Hello from Vercel Python Serverless!"}
+root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
+
+from backend.main import app
+
+app = app
