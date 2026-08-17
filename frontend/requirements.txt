@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlalchemy
+pymysql
+pyjwt
+pydantic
+reportlab
+openpyxl
+python-multipart
+python-dotenv
