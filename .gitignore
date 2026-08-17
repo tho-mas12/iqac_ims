@@ -1,0 +1,31 @@
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+
+# Python Virtual Environment & Cache
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Node / Frontend Build Artifacts
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+.output/
+
+# Databases & Uploads
+*.db
+*.sqlite3
+iqac_ims.db
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Logs & System
+*.log
+.DS_Store
+Thumbs.db
