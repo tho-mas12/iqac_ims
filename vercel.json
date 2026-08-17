@@ -1,6 +1,4 @@
 {
-  "buildCommand": "cd frontend && npm install && npm run build",
-  "outputDirectory": "frontend/dist",
   "rewrites": [
     {
       "source": "/api/:path*",
@@ -9,10 +7,6 @@
     {
       "source": "/uploads/:path*",
       "destination": "/api/index.py"
-    },
-    {
-      "source": "/((?!assets/|.*\\..*).*)",
-      "destination": "/index.html"
     }
   ]
 }
