@@ -15,12 +15,12 @@ if DATABASE_URL.startswith("sqlite"):
         DATABASE_URL, connect_args={"check_same_thread": False}
     )
 else:
-    # For MySQL or other production databases
+    # For MySQL or other production databases (Optimized for shared cPanel hosting limits)
     engine = create_engine(
         DATABASE_URL,
-        pool_size=10,
-        max_overflow=20,
-        pool_recycle=3600,
+        pool_size=2,
+        max_overflow=5,
+        pool_recycle=300,
         pool_pre_ping=True
     )
 
