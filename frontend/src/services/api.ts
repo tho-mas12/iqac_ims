@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// Base URL points to FastAPI backend
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+// Base URL points to FastAPI backend (localhost for dev, /api for Vercel monorepo production)
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
 
 const api = axios.create({
   baseURL: API_URL,
