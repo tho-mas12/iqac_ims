@@ -7,7 +7,21 @@ from backend.router import router
 from backend import models, auth
 from backend.database import SessionLocal
 
-app = FastAPI(title="SJC IQAC-IMS API", version="1.0.0")
+from fastapi.responses import JSONResponse
+import traceback
+
+app = FastAPI(
+    title="SJC IQAC-IMS API",
+    description="Institutional Monitoring System API for St. Joseph's College IQAC",
+    version="1.0.0"
+)
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=500,
+        content={"error": str(exc), "traceback": traceback.format_exc()}
+    )
 
 # Setup CORS middleware
 # React 19 + Vite app runs on localhost:5173 by default
