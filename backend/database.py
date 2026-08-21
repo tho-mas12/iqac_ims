@@ -7,7 +7,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 load_dotenv()
 
 # Database URL configuration (Defaults to SQLite for local development, switchable to MySQL/cPanel)
-default_sqlite = "sqlite:///tmp/iqac_ims.db" if os.getenv("VERCEL") else "sqlite:///./iqac_ims.db"
+default_sqlite = "sqlite:///:memory:" if os.getenv("VERCEL") else "sqlite:///./iqac_ims.db"
 DATABASE_URL = os.getenv("DATABASE_URL", default_sqlite)
 
 # For SQLite, we need connect_args={"check_same_thread": False}
