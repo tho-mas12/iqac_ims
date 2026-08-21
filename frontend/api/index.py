@@ -8,6 +8,10 @@ from datetime import datetime, timedelta
 from urllib.parse import urlparse, parse_qs
 
 SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-iqac-ims-key-2026")
+DB_HOST = "192.185.129.21"
+DB_USER = "freewmbl_ims_user"
+DB_PASS = "sjcIQAC-IMS26"
+DB_NAME = "freewmbl_iqac_ims"
 
 def verify_password(password: str, password_hash: str) -> bool:
     if not password_hash:
@@ -23,15 +27,86 @@ def verify_password(password: str, password_hash: str) -> bool:
         pass
     return password == "admin123"
 
+def get_password_hash(password: str) -> str:
+    import secrets
+    salt = secrets.token_bytes(16)
+    pwd_hash = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 100000).hex()
+    return f"$pbkdf2${salt.hex()}${pwd_hash}"
+
 def get_db_connection():
     return pymysql.connect(
-        host="192.185.129.21",
-        user="freewmbl_ims_user",
-        password="sjcIQAC-IMS26",
-        database="freewmbl_iqac_ims",
+        host=DB_HOST,
+        user=DB_USER,
+        password=DB_PASS,
+        database=DB_NAME,
         connect_timeout=5,
         cursorclass=pymysql.cursors.DictCursor
     )
+
+_tables_initialized = False
+
+def ensure_tables_exist():
+    global _tables_initialized
+    if _tables_initialized:
+        return
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(100) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                role VARCHAR(50) DEFAULT 'Staff',
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS titles (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS questions (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title_id INT NOT NULL,
+                text TEXT NOT NULL,
+                data_from_units VARCHAR(255),
+                email_sent_date VARCHAR(100),
+                due_date VARCHAR(100),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (title_id) REFERENCES titles(id) ON DELETE CASCADE
+            );
+            """)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS checklist_statuses (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                question_id INT NOT NULL UNIQUE,
+                is_checked BOOLEAN DEFAULT FALSE,
+                ticked_at DATETIME,
+                is_manual_time BOOLEAN DEFAULT FALSE,
+                manual_time_str VARCHAR(100),
+                FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE
+            );
+            """)
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS mail_tracking (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                subject VARCHAR(255) NOT NULL,
+                sender_staff VARCHAR(100) NOT NULL,
+                sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                is_answered BOOLEAN DEFAULT FALSE,
+                answered_at DATETIME
+            );
+            """)
+            conn.commit()
+            _tables_initialized = True
+        conn.close()
+    except Exception as e:
+        print("Ensure tables error:", e)
 
 class handler(BaseHTTPRequestHandler):
     def send_json(self, data, status_code=200):
@@ -55,13 +130,41 @@ class handler(BaseHTTPRequestHandler):
         self.send_json({}, 200)
 
     def do_GET(self):
+        ensure_tables_exist()
         path = self.get_route_path()
 
-        # 1. Health check
-        if path in ['/api', '/api/health', '']:
+        # 1. Health Check Endpoint
+        if path in ['/api/health', '/health']:
+            db_status = "disconnected"
+            tables_count = 0
+            try:
+                conn = get_db_connection()
+                with conn.cursor() as cursor:
+                    cursor.execute("SHOW TABLES;")
+                    tables = cursor.fetchall()
+                    tables_count = len(tables)
+                    db_status = "connected"
+                conn.close()
+            except Exception as e:
+                db_status = f"error: {str(e)}"
+
+            return self.send_json({
+                "status": "healthy",
+                "system": "SJC IQAC-IMS API",
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "database": {
+                    "host": DB_HOST,
+                    "name": DB_NAME,
+                    "status": db_status,
+                    "tables_found": tables_count
+                }
+            })
+
+        # 2. General Health / Root
+        if path in ['/api', '/api/']:
             return self.send_json({"status": "online", "system": "SJC IQAC-IMS API"})
 
-        # 2. Get Titles list with counts
+        # 3. Get Titles list with counts
         if path in ['/api/titles', '/api/titles/']:
             try:
                 conn = get_db_connection()
@@ -81,18 +184,10 @@ class handler(BaseHTTPRequestHandler):
                     conn.close()
                     return self.send_json(titles)
             except Exception as e:
-                print("Get titles DB error:", e)
-                return self.send_json([
-                    {
-                        "id": 1,
-                        "name": "SJC Academic Audit 2026",
-                        "description": "Institutional self-monitoring checklist for departmental audit, verification of registers, and syllabus progression.",
-                        "total_questions": 5,
-                        "completed_questions": 3
-                    }
-                ])
+                print("Get titles error:", e)
+                return self.send_json([])
 
-        # 3. Get single Title details with questions
+        # 4. Get single Title details with questions
         if path.startswith('/api/titles/'):
             try:
                 title_id = int(path.split('/')[-1])
@@ -117,7 +212,7 @@ class handler(BaseHTTPRequestHandler):
             except Exception as e:
                 print("Get title detail error:", e)
 
-        # 4. Get Mails list
+        # 5. Get Mails list
         if path in ['/api/mails', '/api/mails/']:
             try:
                 conn = get_db_connection()
@@ -127,10 +222,10 @@ class handler(BaseHTTPRequestHandler):
                     conn.close()
                     return self.send_json(mails)
             except Exception as e:
-                print("Get mails DB error:", e)
+                print("Get mails error:", e)
                 return self.send_json([])
 
-        # 5. Get Users list
+        # 6. Get Users list
         if path in ['/api/users', '/api/users/']:
             try:
                 conn = get_db_connection()
@@ -140,12 +235,13 @@ class handler(BaseHTTPRequestHandler):
                     conn.close()
                     return self.send_json(users)
             except Exception as e:
-                print("Get users DB error:", e)
-                return self.send_json([{"id": 1, "username": "admin", "role": "Admin"}])
+                print("Get users error:", e)
+                return self.send_json([])
 
         return self.send_json({"detail": "Not Found"}, 404)
 
     def do_POST(self):
+        ensure_tables_exist()
         path = self.get_route_path()
 
         content_length = int(self.headers.get('Content-Length', 0))
@@ -196,10 +292,51 @@ class handler(BaseHTTPRequestHandler):
 
             return self.send_json({"detail": "Incorrect username or password"}, 401)
 
-        # 2. Toggle Question status
+        # 2. Create Title with Questions
+        if path in ['/api/titles', '/api/titles/']:
+            name = data.get("name", "").strip()
+            description = data.get("description", "").strip()
+            questions_data = data.get("questions", [])
+
+            if not name:
+                return self.send_json({"detail": "Title name is required"}, 400)
+
+            try:
+                conn = get_db_connection()
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "INSERT INTO titles (name, description) VALUES (%s, %s)",
+                        (name, description)
+                    )
+                    title_id = cursor.lastrowid
+                    
+                    for q in questions_data:
+                        q_text = q.get("text", "").strip() if isinstance(q, dict) else str(q).strip()
+                        if not q_text:
+                            continue
+                        data_from = q.get("data_from_units", "") if isinstance(q, dict) else ""
+                        email_date = q.get("email_sent_date", "") if isinstance(q, dict) else ""
+                        due_date = q.get("due_date", "") if isinstance(q, dict) else ""
+                        
+                        cursor.execute(
+                            "INSERT INTO questions (title_id, text, data_from_units, email_sent_date, due_date) VALUES (%s, %s, %s, %s, %s)",
+                            (title_id, q_text, data_from, email_date, due_date)
+                        )
+                        q_id = cursor.lastrowid
+                        cursor.execute("INSERT INTO checklist_statuses (question_id, is_checked) VALUES (%s, 0)", (q_id,))
+
+                    conn.commit()
+                    conn.close()
+                    return self.send_json({"id": title_id, "name": name, "description": description, "message": "Title and questions created successfully"})
+            except Exception as e:
+                print("Create title error:", e)
+                return self.send_json({"detail": str(e)}, 500)
+
+        # 3. Toggle Question Status
         if '/questions/' in path and path.endswith('/toggle'):
             try:
-                q_id = int(path.split('/')[-2])
+                parts = path.split('/')
+                q_id = int(parts[parts.index('questions') + 1])
                 conn = get_db_connection()
                 with conn.cursor() as cursor:
                     cursor.execute("SELECT * FROM checklist_statuses WHERE question_id = %s", (q_id,))
@@ -207,14 +344,99 @@ class handler(BaseHTTPRequestHandler):
                     new_val = not bool(st['is_checked']) if st else True
                     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     if st:
-                        cursor.execute("UPDATE checklist_statuses SET is_checked = %s, ticked_at = %s WHERE question_id = %s", (new_val, now_str, q_id))
+                        cursor.execute("UPDATE checklist_statuses SET is_checked = %s, ticked_at = %s WHERE question_id = %s", (new_val if new_val else 0, now_str if new_val else None, q_id))
                     else:
-                        cursor.execute("INSERT INTO checklist_statuses (question_id, is_checked, ticked_at) VALUES (%s, %s, %s)", (q_id, new_val, now_str))
+                        cursor.execute("INSERT INTO checklist_statuses (question_id, is_checked, ticked_at) VALUES (%s, %s, %s)", (q_id, 1 if new_val else 0, now_str))
                     conn.commit()
                     conn.close()
-                    return self.send_json({"is_checked": new_val, "ticked_at": now_str})
+                    return self.send_json({"is_checked": new_val, "ticked_at": now_str if new_val else None})
             except Exception as e:
                 print("Toggle question error:", e)
                 return self.send_json({"is_checked": True, "ticked_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+
+        # 4. Create Mail Entry
+        if path in ['/api/mails', '/api/mails/']:
+            subject = data.get("subject", "").strip()
+            sender_staff = data.get("sender_staff", "").strip()
+            if not subject or not sender_staff:
+                return self.send_json({"detail": "Subject and sender staff are required"}, 400)
+            try:
+                conn = get_db_connection()
+                with conn.cursor() as cursor:
+                    cursor.execute("INSERT INTO mail_tracking (subject, sender_staff) VALUES (%s, %s)", (subject, sender_staff))
+                    mail_id = cursor.lastrowid
+                    conn.commit()
+                    conn.close()
+                    return self.send_json({"id": mail_id, "subject": subject, "sender_staff": sender_staff, "is_answered": False})
+            except Exception as e:
+                return self.send_json({"detail": str(e)}, 500)
+
+        # 5. Mark Mail Answered
+        if '/mails/' in path and (path.endswith('/answered') or path.endswith('/receive')):
+            try:
+                parts = path.split('/')
+                mail_id = int(parts[parts.index('mails') + 1])
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                conn = get_db_connection()
+                with conn.cursor() as cursor:
+                    cursor.execute("UPDATE mail_tracking SET is_answered = 1, answered_at = %s WHERE id = %s", (now_str, mail_id))
+                    conn.commit()
+                    conn.close()
+                    return self.send_json({"id": mail_id, "is_answered": True, "answered_at": now_str})
+            except Exception as e:
+                return self.send_json({"detail": str(e)}, 500)
+
+        # 6. Create User
+        if path in ['/api/users', '/api/users/']:
+            username = data.get("username", "").strip()
+            password = data.get("password", "").strip()
+            role = data.get("role", "Staff").strip()
+
+            if not username or not password:
+                return self.send_json({"detail": "Username and password are required"}, 400)
+
+            try:
+                pwd_hash = get_password_hash(password)
+                conn = get_db_connection()
+                with conn.cursor() as cursor:
+                    cursor.execute("INSERT INTO users (username, password_hash, role) VALUES (%s, %s, %s)", (username, pwd_hash, role))
+                    user_id = cursor.lastrowid
+                    conn.commit()
+                    conn.close()
+                    return self.send_json({"id": user_id, "username": username, "role": role})
+            except Exception as e:
+                return self.send_json({"detail": str(e)}, 500)
+
+        return self.send_json({"detail": "Not Found"}, 404)
+
+    def do_DELETE(self):
+        ensure_tables_exist()
+        path = self.get_route_path()
+
+        # Delete Title
+        if path.startswith('/api/titles/'):
+            try:
+                title_id = int(path.split('/')[-1])
+                conn = get_db_connection()
+                with conn.cursor() as cursor:
+                    cursor.execute("DELETE FROM titles WHERE id = %s", (title_id,))
+                    conn.commit()
+                    conn.close()
+                    return self.send_json({"message": "Title deleted successfully"})
+            except Exception as e:
+                return self.send_json({"detail": str(e)}, 500)
+
+        # Delete User
+        if path.startswith('/api/users/'):
+            try:
+                user_id = int(path.split('/')[-1])
+                conn = get_db_connection()
+                with conn.cursor() as cursor:
+                    cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+                    conn.commit()
+                    conn.close()
+                    return self.send_json({"message": "User deleted successfully"})
+            except Exception as e:
+                return self.send_json({"detail": str(e)}, 500)
 
         return self.send_json({"detail": "Not Found"}, 404)
