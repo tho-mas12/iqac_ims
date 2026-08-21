@@ -40,6 +40,11 @@ Base = declarative_base()
 
 # Dependency to get db session in FastAPI routes
 def get_db():
+    try:
+        from backend.main import ensure_db_initialized
+        ensure_db_initialized()
+    except Exception as e:
+        print("get_db lazy init warning:", e)
     db = SessionLocal()
     try:
         yield db
