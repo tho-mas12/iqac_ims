@@ -47,7 +47,12 @@ const Login: React.FC = () => {
       navigate('/dashboard', { replace: true });
     } catch (err: any) {
       console.error(err);
-      const errMsg = err.response?.data?.detail || 'Authentication failed. Please check credentials.';
+      let errMsg = 'Authentication failed. Please check credentials.';
+      if (err.response?.status === 404) {
+        errMsg = 'Backend API unreachable (404 Not Found). Please check backend deployment & VITE_API_URL.';
+      } else if (err.response?.data?.detail) {
+        errMsg = err.response.data.detail;
+      }
       toast.error(errMsg);
     } finally {
       setLoading(false);
