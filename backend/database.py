@@ -18,11 +18,11 @@ if DATABASE_URL.startswith("sqlite"):
         DATABASE_URL, connect_args={"check_same_thread": False}
     )
 elif os.getenv("VERCEL"):
-    # For Vercel Serverless Functions, use NullPool to prevent connection pool exhaustion across lambdas
+    # For Vercel Serverless Functions, use NullPool with connection timeout
     engine = create_engine(
         DATABASE_URL,
         poolclass=NullPool,
-        pool_pre_ping=True
+        connect_args={"connect_timeout": 10}
     )
 else:
     # For persistent server processes (Optimized for shared cPanel hosting limits)
