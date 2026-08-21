@@ -7,8 +7,8 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 load_dotenv()
 
 # Database URL configuration (Defaults to SQLite for local development, switchable to MySQL/cPanel)
-default_sqlite = "sqlite:///:memory:" if os.getenv("VERCEL") else "sqlite:///./iqac_ims.db"
-DATABASE_URL = os.getenv("DATABASE_URL", default_sqlite)
+default_db = "mysql+pymysql://freewmbl_ims_user:sjcIQAC-IMS26@192.185.129.21/freewmbl_iqac_ims" if os.getenv("VERCEL") else "sqlite:///./iqac_ims.db"
+DATABASE_URL = os.getenv("DATABASE_URL", default_db)
 
 from sqlalchemy.pool import NullPool
 
