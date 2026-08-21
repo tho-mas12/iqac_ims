@@ -71,8 +71,8 @@ const Dashboard: React.FC = () => {
         api.get('/titles'),
         api.get('/mails')
       ]);
-      setTitles(titlesRes.data);
-      setMails(mailsRes.data);
+      setTitles(Array.isArray(titlesRes.data) ? titlesRes.data : []);
+      setMails(Array.isArray(mailsRes.data) ? mailsRes.data : []);
     } catch (err) {
       console.error(err);
       toast.error('Failed to load dashboard statistics.');
