@@ -43,19 +43,26 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(data, default=str).encode('utf-8'))
 
+    def get_route_path(self):
+        parsed = urlparse(self.path)
+        query = parse_qs(parsed.query)
+        subpath = query.get('path', [''])[0]
+        if subpath:
+            return '/api/' + subpath.lstrip('/')
+        return parsed.path.rstrip('/')
+
     def do_OPTIONS(self):
         self.send_json({}, 200)
 
     def do_GET(self):
-        parsed = urlparse(self.path)
-        path = parsed.path.rstrip('/')
+        path = self.get_route_path()
 
         # 1. Health check
         if path in ['/api', '/api/health', '']:
             return self.send_json({"status": "online", "system": "SJC IQAC-IMS API"})
 
         # 2. Get Titles list with counts
-        if path == '/api/titles':
+        if path in ['/api/titles', '/api/titles/']:
             try:
                 conn = get_db_connection()
                 with conn.cursor() as cursor:
@@ -75,7 +82,6 @@ class handler(BaseHTTPRequestHandler):
                     return self.send_json(titles)
             except Exception as e:
                 print("Get titles DB error:", e)
-                # Default sample title fallback
                 return self.send_json([
                     {
                         "id": 1,
@@ -112,7 +118,7 @@ class handler(BaseHTTPRequestHandler):
                 print("Get title detail error:", e)
 
         # 4. Get Mails list
-        if path == '/api/mails':
+        if path in ['/api/mails', '/api/mails/']:
             try:
                 conn = get_db_connection()
                 with conn.cursor() as cursor:
@@ -125,7 +131,7 @@ class handler(BaseHTTPRequestHandler):
                 return self.send_json([])
 
         # 5. Get Users list
-        if path == '/api/users':
+        if path in ['/api/users', '/api/users/']:
             try:
                 conn = get_db_connection()
                 with conn.cursor() as cursor:
@@ -140,8 +146,7 @@ class handler(BaseHTTPRequestHandler):
         return self.send_json({"detail": "Not Found"}, 404)
 
     def do_POST(self):
-        parsed = urlparse(self.path)
-        path = parsed.path.rstrip('/')
+        path = self.get_route_path()
 
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length).decode('utf-8')
@@ -194,7 +199,7 @@ class handler(BaseHTTPRequestHandler):
         # 2. Toggle Question status
         if '/questions/' in path and path.endswith('/toggle'):
             try:
-                q_id = int(path.split('/')[3])
+                q_id = int(path.split('/')[-2])
                 conn = get_db_connection()
                 with conn.cursor() as cursor:
                     cursor.execute("SELECT * FROM checklist_statuses WHERE question_id = %s", (q_id,))
