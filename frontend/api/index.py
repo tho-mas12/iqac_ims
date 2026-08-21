@@ -134,7 +134,7 @@ class handler(BaseHTTPRequestHandler):
         path = self.get_route_path()
 
         # 1. Health Check Endpoint
-        if path in ['/api/health', '/health']:
+        if 'health' in path or 'health' in self.path:
             db_status = "disconnected"
             tables_count = 0
             try:
